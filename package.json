@@ -1,0 +1,30 @@
+{
+  "name": "k6-openfga-test",
+  "version": "1.0.0",
+  "description": "An OpenFGA test project which uses K6 for benchmark and load testing.",
+  "main": "main.js",
+  "devDependencies": {
+    "@babel/core": "^7.4.4",
+    "@babel/plugin-transform-block-scoping": "^7.14.1",
+    "@babel/preset-env": "^7.4.4",
+    "babel-loader": "^8.0.6",
+    "core-js": "^3.0.1",
+    "moment": "^2.24.0",
+    "webpack": "^4.31.0",
+    "webpack-cli": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=16 <17"
+  },
+  "scripts": {
+    "webpack": "webpack",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "k6"
+  ],
+  "author": "Jonathan Whitaker",
+  "dependencies": {
+    "lodash": "^4.17.21"
+  }
+}
