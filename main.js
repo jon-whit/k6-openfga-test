@@ -152,13 +152,29 @@ Object.keys(orgs).forEach((orgName) => {
 });
 
 export const options = {
-    setupTimeout: '2m',
-    teardownTimeout: '2m',
-    vus: 1,
-    duration: '10s',
+  scenarios: {}
 }
 
+let scenarios = {
+  constant_rps: {
+    executor: 'constant-arrival-rate',
+    rate: 1500,
+    timeUnit: '1s',
+    duration: '1m',
+    preAllocatedVUs: 20,
+    maxVUs: 40
+  },
+};
+
 const headers = { 'Content-Type': 'application/json' };
+
+
+if (__ENV.scenario) {
+  // ise single scenario if `--env scenario=<example>` is used
+  options.scenarios[__ENV.scenario] = scenarios[__ENV.scenario];
+} else {
+  options.scenarios = scenarios;
+}
 
 export function setup() {
 
