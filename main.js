@@ -445,7 +445,7 @@ export function setup() {
       }
     })
 
-    let resp = http.post(`${API_BASE_URI}/stores/${STORE_ID}/write`, payload), {headers: headers});
+    let resp = http.post(`${API_BASE_URI}/stores/${STORE_ID}/write`, payload, {headers: headers});
 
     check(resp, {
       "write response was 200": (r) => r.status === 200,
