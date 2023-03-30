@@ -65,6 +65,11 @@ const scenarios = {
 };
 
 export const options = {
+  ext: {
+    loadimpact: {
+      projectID: 3633397
+    }
+  },
   setupTimeout: '10m',
   scenarios: {}
 };
