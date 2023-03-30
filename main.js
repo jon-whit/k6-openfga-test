@@ -2,26 +2,21 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { random, chunk } from 'lodash';
 
-let API_BASE_URI = __ENV.API_BASE_URI
+const headers = { 'Content-Type': 'application/json' };
+
+let API_BASE_URI = __ENV.API_BASE_URI;
 if (!API_BASE_URI) {
   API_BASE_URI = "http://localhost:8080"
 }
 
-let headers = { 'Content-Type': 'application/json' };
-
-const API_TOKEN = __ENV.API_TOKEN
+const API_TOKEN = __ENV.API_TOKEN;
 if (API_TOKEN) {
   headers['Authorization'] = `Bearer ${API_TOKEN}`;
 }
 
-const STORE_ID = __ENV.STORE_ID
-if (!STORE_ID) {
-    throw new Error("'STORE_ID' env variable must be defined")
-}
-
 let TUPLES_PER_WRITE = __ENV.TUPLES_PER_WRITE
 if (!TUPLES_PER_WRITE) {
-    TUPLES_PER_WRITE = 100
+    TUPLES_PER_WRITE = 100;
 }
 
 let TOTAL_REPOS = __ENV.TOTAL_REPOS;
@@ -39,12 +34,12 @@ if (!TOTAL_ORGS) {
     TOTAL_ORGS = 35;
 }
 
-export const options = {
-  setupTimeout: '10m',
-  scenarios: {}
-}
-
-let scenarios = {
+const scenarios = {
+  benchmark: {
+    executor: 'constant-vus',
+    duration: '2m',
+    vus: 1
+  },
   constant_rps: {
     executor: 'constant-arrival-rate',
     rate: 250,
@@ -69,11 +64,19 @@ let scenarios = {
   }
 };
 
-if (__ENV.scenario) {
-  // use single scenario if `--env scenario=<example>` is provided
-  options.scenarios[__ENV.scenario] = scenarios[__ENV.scenario];
-} else {
-  options.scenarios = scenarios;
+export const options = {
+  setupTimeout: '10m',
+  scenarios: {}
+};
+
+let STORE_ID = __ENV.STORE_ID;
+let scenario = __ENV.scenario || "benchmark";
+
+options.scenarios[scenario] = scenarios[scenario];
+if (scenario !== "benchmark") {
+  if (!STORE_ID) {
+    throw new Error("'STORE_ID' env variable must be defined");
+  }
 }
 
 function bootstrap() {
@@ -200,9 +203,22 @@ function bootstrap() {
 
 export function setup() {
 
-  const {tuples, checks} = bootstrap();
+  let storeId = STORE_ID;
 
-  let res = http.post(`${API_BASE_URI}/stores/${STORE_ID}/authorization-models`, JSON.stringify({
+  if (scenario === "benchmark") {
+    let res = http.post(`${API_BASE_URI}/stores`, JSON.stringify({
+      name: `openfga-benchmark`
+    }), {
+      headers: headers,
+    });
+    check(res, {
+      "create store response code was 201": (r) => r.status === 201,
+    })
+
+    storeId = res.json()["id"];
+  }
+
+  let res = http.post(`${API_BASE_URI}/stores/${storeId}/authorization-models`, JSON.stringify({
     "type_definitions": [
       {
         "type": "user",
@@ -436,6 +452,8 @@ export function setup() {
 
   const modelId = res.json()["authorization_model_id"]
 
+  const {tuples, checks} = bootstrap();
+
   const batches = chunk(Array.from(tuples), TUPLES_PER_WRITE);
 
   for (let i = 0; i < batches.length; i++) {
@@ -445,8 +463,7 @@ export function setup() {
       }
     })
 
-    let resp = http.post(`${API_BASE_URI}/stores/${STORE_ID}/write`, payload, {headers: headers});
-
+    let resp = http.post(`${API_BASE_URI}/stores/${storeId}/write`, payload, {headers: headers});
     check(resp, {
       "write response was 200": (r) => r.status === 200,
     });
@@ -461,15 +478,16 @@ export function setup() {
     }
   }
 
-  return { tuples, checks, modelId};
+  return { tuples, checks, storeId, modelId};
 }
 
 export default function (data) {
 
-  let checks = data.checks;
-  let tupleKey = checks[random(0, checks.length-1)]
+  const storeId = data.storeId;
+  const checks = data.checks;
+  const tupleKey = checks[random(0, checks.length-1)]
   
-  let res = http.post(`${API_BASE_URI}/stores/${STORE_ID}/check`, JSON.stringify({
+  let res = http.post(`${API_BASE_URI}/stores/${storeId}/check`, JSON.stringify({
     "tuple_key": tupleKey
   }), {headers: headers})
   check(res, {
@@ -482,12 +500,14 @@ export default function (data) {
 }
 
 export function teardown(data) {
+
+  const storeId = data.storeId;
   const tuples = data.tuples;
 
   const batches = chunk(Array.from(tuples), TUPLES_PER_WRITE);
 
   for (let i = 0; i < batches.length; i++) {
-    let resp = http.post(`${API_BASE_URI}/stores/${STORE_ID}/write`, JSON.stringify({
+    let resp = http.post(`${API_BASE_URI}/stores/${storeId}/write`, JSON.stringify({
       "deletes": {
           "tuple_keys": batches[i]
       }
